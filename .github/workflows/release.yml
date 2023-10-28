@@ -1,0 +1,38 @@
+name: publish on release
+
+on:
+  release:
+    types:
+      - created
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+    - name: Set up JDK 17
+      uses: actions/setup-java@v3
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+        cache: maven
+    - name: Build with Maven
+      run: mvn -B package --file pom.xml
+
+    - name: Upload JAR
+      run: |
+        mvn clean package
+        ls target/
+        mv target/wav-huffman-coding-1.0-shaded.jar target/wav-huffman-coding.jar
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Create Release Asset
+      id: create_release
+      uses: softprops/action-gh-release@v1
+      with:
+        files: target/wav-huffman-coding.jar
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
