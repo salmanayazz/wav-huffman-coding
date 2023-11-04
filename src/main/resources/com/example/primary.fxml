@@ -50,7 +50,7 @@
                         <Font size="14.0" />
                      </font>
                   </Text>
-                  <Text fx:id="total_samples" strokeType="OUTSIDE" strokeWidth="0.0" text="N/A" textAlignment="CENTER" />
+                  <Text fx:id="entropy" strokeType="OUTSIDE" strokeWidth="0.0" text="N/A" textAlignment="CENTER" />
                </children>
             </VBox>
             <VBox alignment="CENTER" spacing="8.0">
@@ -60,7 +60,7 @@
                         <Font size="14.0" />
                      </font>
                   </Text>
-                  <Text fx:id="sampling_frequency" strokeType="OUTSIDE" strokeWidth="0.0" text="N/A" textAlignment="CENTER" />
+                  <Text fx:id="avg_code_length" strokeType="OUTSIDE" strokeWidth="0.0" text="N/A" textAlignment="CENTER" />
                </children>
             </VBox>
          </children>

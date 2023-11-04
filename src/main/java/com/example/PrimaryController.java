@@ -8,16 +8,24 @@ import javafx.scene.text.Text;
 import javafx.stage.FileChooser;
 import javafx.stage.FileChooser.ExtensionFilter;
 import java.io.File;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.TreeMap;
 
 public class PrimaryController {
+
+    class SampleNode {
+        Integer sample;
+        Integer count;
+    }
     @FXML
     private Text entropy;
     @FXML
     private Text avg_code_length;
     @FXML
     private Text file_name;
+
+    private int[] samples;
 
     @FXML
     private void selectFile() {
@@ -53,7 +61,7 @@ public class PrimaryController {
             audioInputStream.read(audioData);
 
             // extract samples into array
-            int[] samples = new int[audioData.length / sampleSizeInBytes];
+            samples = new int[audioData.length / sampleSizeInBytes];
 
             for (int i = 0; i < audioData.length; i += sampleSizeInBytes) {
                 if (sampleSizeInBytes == 1) { // special case when sample size is 8 bits
@@ -67,17 +75,16 @@ public class PrimaryController {
                 }
             }
 
-            samplesCount(samples);
+            samplesCount();
         } catch (Exception e) {
             e.printStackTrace();
         }
     }
 
     /**
-     * obtains how often each sample occurs in the provided array
-     * @param samples
+     * obtains how often each sample occurs samples array
      */
-    private void samplesCount(int[] samples) {
+    private void samplesCount() {
         // <sample, count>
         Map<Integer, Integer> samplesTree = new TreeMap<>();
 
@@ -89,15 +96,26 @@ public class PrimaryController {
             if (samplesCount == null) {
                 samplesTree.put(samples[i], 1);
             } else {
-                samplesTree.put(samples[i], ++samplesCount);
+                samplesTree.put(samples[i], (samplesCount + 1));
             }
         }
 
-        Integer[] samplesCount = samplesTree.values().toArray(new Integer[0]);
+        calulateEntropy(samplesTree);
+    }
 
-        for (int i = 0; i < samplesCount.length; i++) {
-            System.out.println("index " +  i + ": " + samplesCount[i]);
+    /**
+     * calculates the entropy from the given tree
+     * @param samplesTree
+     * tree of samples and their frequency
+     */
+    private void calulateEntropy(Map<Integer, Integer> samplesTree) {
+        double entropyCalc = 0.0;
+
+        for (Map.Entry<Integer, Integer> sampleCount : samplesTree.entrySet()) {
+            entropyCalc += -((double)sampleCount.getValue() / (double)samples.length) * (Math.log((double)sampleCount.getValue() / (double)samples.length) / Math.log(2));
         }
+
+        entropy.setText(entropyCalc + "");
     }
 
 }
