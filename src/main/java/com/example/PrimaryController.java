@@ -8,16 +8,13 @@ import javafx.scene.text.Text;
 import javafx.stage.FileChooser;
 import javafx.stage.FileChooser.ExtensionFilter;
 import java.io.File;
-import java.util.Iterator;
+import java.util.Arrays;
+import java.util.Comparator;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.BitSet;
 
 public class PrimaryController {
-
-    class SampleNode {
-        Integer sample;
-        Integer count;
-    }
     @FXML
     private Text entropy;
     @FXML
@@ -26,6 +23,8 @@ public class PrimaryController {
     private Text file_name;
 
     private int[] samples;
+    // <sample, count>
+    Map<Integer, Integer> samplesTree;
 
     @FXML
     private void selectFile() {
@@ -63,59 +62,140 @@ public class PrimaryController {
             // extract samples into array
             samples = new int[audioData.length / sampleSizeInBytes];
 
-            for (int i = 0; i < audioData.length; i += sampleSizeInBytes) {
+            for (int i = 0, sampleIndex = 0; i < audioData.length; i += sampleSizeInBytes, sampleIndex++) {
                 if (sampleSizeInBytes == 1) { // special case when sample size is 8 bits
-                    // bitwise AND to set the bytes to an unsigned value, then recenter with "- 128"
-                    samples[i / sampleSizeInBytes] = (audioData[i] & 0xFF) - 128;
+                    // bitwise AND to set the byte to an unsigned value, then recenter with "- 128"
+                    samples[sampleIndex] = (audioData[i] & 0xFF) - 128;
                 } else {
-                    // shift the MSB left to merge it with the LSB while iterating over each byte in the sample
+                    // initialize the sample
+                    samples[sampleIndex] = 0;
+                    // shift the bytes and merge them while iterating over each byte in the sample
                     for (int j = 0; j < sampleSizeInBytes; j++) {
-                        samples[i / sampleSizeInBytes] = (samples[i / sampleSizeInBytes] | (audioData[i + j] << 8 * j));
+                        samples[sampleIndex] |= (audioData[i + j] & 0xFF) << (8 * j);
                     }
                 }
             }
 
-            samplesCount();
+            samplesSum();
         } catch (Exception e) {
             e.printStackTrace();
         }
     }
 
     /**
-     * obtains how often each sample occurs samples array
+     * obtains how often each sample occurs samples array then
+     * calls calculateEntropy()
      */
-    private void samplesCount() {
-        // <sample, count>
-        Map<Integer, Integer> samplesTree = new TreeMap<>();
+    private void samplesSum() {
+        samplesTree = new TreeMap<>();
 
-        // place into a binary search tree to obtain frequency
+        // place into a binary search tree to obtain the sum of the sample
         for (int i = 0; i < samples.length; i++) {
-            Integer samplesCount = samplesTree.get(samples[i]);
+            Integer samplesSum = samplesTree.get(samples[i]);
 
             // if sample already exists, increment count, otherwise add
-            if (samplesCount == null) {
+            if (samplesSum == null) {
                 samplesTree.put(samples[i], 1);
             } else {
-                samplesTree.put(samples[i], (samplesCount + 1));
+                samplesTree.put(samples[i], (samplesSum + 1));
             }
         }
 
-        calulateEntropy(samplesTree);
+        calulateEntropy();
     }
 
     /**
-     * calculates the entropy from the given tree
-     * @param samplesTree
-     * tree of samples and their frequency
+     * calculates the entropy from the samplesTree variable
+     * then calls calculateAverageCodeLength()
      */
-    private void calulateEntropy(Map<Integer, Integer> samplesTree) {
+    private void calulateEntropy() {
         double entropyCalc = 0.0;
 
-        for (Map.Entry<Integer, Integer> sampleCount : samplesTree.entrySet()) {
-            entropyCalc += -((double)sampleCount.getValue() / (double)samples.length) * (Math.log((double)sampleCount.getValue() / (double)samples.length) / Math.log(2));
+        for (Map.Entry<Integer, Integer> sampleSum : samplesTree.entrySet()) {
+            double probability = (double)sampleSum.getValue() / (double)samples.length;
+            entropyCalc += - (probability * (Math.log(probability) / Math.log(2)));
         }
 
         entropy.setText(entropyCalc + "");
+
+        calculateAverageCodeLength();
     }
 
+    /**
+     * a node for the huffman tree
+     */
+    class SampleNode {
+        SampleNode left;
+        SampleNode right;
+        Integer sum;
+        Integer sample = null;
+        BitSet code = null;
+    }
+
+    /**
+     * performs  huffman coding on the samples to obtain the average code length
+     */
+    private void calculateAverageCodeLength() {
+        // convert the samplesTree into an array of SampleNodes
+        SampleNode[] sampleNodes = samplesTree.entrySet().stream()
+            .map(entry -> {
+                SampleNode sampleNode = new SampleNode();
+                sampleNode.sample = entry.getKey();
+                sampleNode.sum = entry.getValue();
+                return sampleNode;
+            }).toArray(SampleNode[]::new);
+    
+        // sort the SampleNodes in ascending order of sum value
+        Arrays.sort(sampleNodes, (o1, o2) -> o1.sum.compareTo(o2.sum));
+    
+        // build the huffman tree
+        while (sampleNodes.length > 1) {
+            SampleNode left = sampleNodes[0];
+            SampleNode right = sampleNodes[1];
+    
+            // create a new parent node
+            SampleNode newParent = new SampleNode();
+            newParent.left = left;
+            newParent.right = right;
+            newParent.sum = left.sum + right.sum;
+    
+            // replace lowest sum nodes with new parent
+            sampleNodes = Arrays.copyOfRange(sampleNodes, 2, sampleNodes.length + 1);
+            sampleNodes[sampleNodes.length - 1] = newParent;
+    
+            // resort to keep it in ascending order
+            Arrays.sort(sampleNodes, (o1, o2) -> o1.sum.compareTo(o2.sum));
+        }
+    
+        SampleNode rootNode = sampleNodes[0];
+    
+        double avgCodeLength = calculateAverageCodeLengthHelper(rootNode, 0);
+        avg_code_length.setText(avgCodeLength + "");
+    }
+
+    /**
+     * recursively calculates the average code length
+     * @param node
+     * the current node
+     * @param depth
+     * the current depth
+     * @return
+     * the average code length
+     */
+    private double calculateAverageCodeLengthHelper(SampleNode node, int depth) {
+        if (node == null) {
+            return 0;
+        }
+    
+        if (node.sample != null) {
+            // leaf, return calc for this node
+            return (double)depth * ((double)node.sum / (double)samples.length);
+        }
+    
+        // recurse left and right
+        double left = calculateAverageCodeLengthHelper(node.left, depth + 1);
+        double right = calculateAverageCodeLengthHelper(node.right, depth + 1);
+    
+        return left + right;
+    }
 }
